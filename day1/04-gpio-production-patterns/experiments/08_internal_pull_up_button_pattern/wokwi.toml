@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = "build/flasher_args.json"
+elf = "build/08_internal_pull_up_button_psttern.elf"

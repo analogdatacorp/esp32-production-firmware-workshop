@@ -1,0 +1,41 @@
+.envrc
+
+# ESP-IDF build output
+build/
+sdkconfig
+sdkconfig.old
+dependencies.lock
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
+idf.log
+
+# Binary files
+*.bin
+*.elf
+*.map
+
+
+# Until Day 2: ignore all files in day2 directory
+day2/*

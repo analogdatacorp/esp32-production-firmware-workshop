@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = "build/flasher_args.json"
+elf = "build/02_push_button_with_pull_down_resistor.bin"
