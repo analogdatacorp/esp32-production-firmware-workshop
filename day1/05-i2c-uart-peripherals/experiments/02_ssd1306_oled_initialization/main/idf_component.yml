@@ -1,0 +1,5 @@
+## IDF Component Manager manifest
+## Run `idf.py build` — this file downloads dependencies automatically
+
+dependencies:
+  idf: ">=6.0.0"

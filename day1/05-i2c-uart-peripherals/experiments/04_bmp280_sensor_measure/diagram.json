@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "author": "Rajath Kumar",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-s2-devkitm-1",
+      "id": "esp",
+      "top": -1.29,
+      "left": 77.03,
+      "attrs": {
+        "builder": "esp-idf"
+      }
+    },
+    {
+      "type": "wokwi-bmp280",
+      "id": "bmp1",
+      "top": -95,
+      "left": -195,
+      "attrs": {
+        "i2cAddress": "0x76"
+      }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+
+    [ "bmp1:SDA", "esp:8", "green", [ "v90", "h250", "v-52" ] ],
+    [ "bmp1:SCL", "esp:9", "blue", [ "v106", "h266", "v-64" ] ],
+    [ "bmp1:VCC", "esp:3V3", "red", [ "v122", "h282", "v-158" ] ],
+    [ "bmp1:GND", "esp:GND.1", "black", [ "v138", "h298", "v-98" ] ]
+  ],
+  "dependencies": {}
+}
