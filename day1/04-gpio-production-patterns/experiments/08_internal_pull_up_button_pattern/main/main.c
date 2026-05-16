@@ -14,7 +14,7 @@ static const char *TAG = "internal_pullup";
 #define GPIO_QUEUE_LENGTH   10
 #define LED_BLINK_COUNT     3
 #define LED_BLINK_DELAY_MS  200
-#define DEBOUNCE_TIME_MS    50
+#define DEBOUNCE_TIME_MS    150
 
 static QueueHandle_t gpio_evt_queue = NULL;
 

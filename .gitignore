@@ -35,7 +35,3 @@ idf.log
 *.bin
 *.elf
 *.map
-
-
-# Until Day 2: ignore all files in day2 directory
-day2/*

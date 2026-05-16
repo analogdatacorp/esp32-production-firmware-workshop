@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = "build/02_priority_starvation.bin"
+elf = "build/02_priority_starvation.elf"
