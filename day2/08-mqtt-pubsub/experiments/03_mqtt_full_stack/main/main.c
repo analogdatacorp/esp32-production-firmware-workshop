@@ -6,43 +6,54 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 
+#include "driver/gpio.h"
+
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
 
 #include "mqtt_client.h"
-
 #include "nvs_flash.h"
-
-#include "lwip/inet.h"
-
-/*
- * Session 08 - Experiment 02
- * Publish Sensor Data
- *
- * Concept:
- * ESP32 publishes MQTT messages every 2 seconds.
- *
- * MQTT Explorer on PC receives messages live.
- */
 
 #define WIFI_SSID      "esp-analogdata"
 #define WIFI_PASSWORD  "analogdata.io"
 
-#define MQTT_BROKER_URI  "mqtt://broker.hivemq.com:1883"
-#define MQTT_CLIENT_ID   "analogdata_esp32_001"
+#define MQTT_BROKER_URI "mqtt://broker.hivemq.com:1883"
+#define MQTT_CLIENT_ID  "analogdata_esp32_led_client"
+
+#define MQTT_TOPIC      "analogdata-esp"
+
+#define LED_GPIO        GPIO_NUM_2
 
 #define WIFI_CONNECTED_BIT BIT0
 
 static const char *TAG_WIFI = "WIFI";
 static const char *TAG_MQTT = "MQTT";
+static const char *TAG_LED  = "LED";
 
 static EventGroupHandle_t wifi_event_group;
-
-static bool mqtt_connected = false;
-
 static esp_mqtt_client_handle_t mqtt_client = NULL;
+
+/* -------------------------------------------------------
+ * LED Init
+ * -----------------------------------------------------*/
+
+static void led_init(void)
+{
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << LED_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+
+    gpio_config(&io_conf);
+    gpio_set_level(LED_GPIO, 0);
+
+    ESP_LOGI(TAG_LED, "LED initialized on GPIO 2");
+}
 
 /* -------------------------------------------------------
  * WiFi Event Handler
@@ -56,20 +67,15 @@ static void wifi_event_handler(void *arg,
     if (event_base == WIFI_EVENT &&
         event_id == WIFI_EVENT_STA_START) {
 
-        ESP_LOGI(TAG_WIFI,
-                 "WiFi started");
-
+        ESP_LOGI(TAG_WIFI, "WiFi started");
         esp_wifi_connect();
     }
 
     else if (event_base == WIFI_EVENT &&
              event_id == WIFI_EVENT_STA_CONNECTED) {
 
-        ESP_LOGI(TAG_WIFI,
-                 "Connected to Access Point");
-
-        ESP_LOGW(TAG_WIFI,
-                 "Waiting for IP...");
+        ESP_LOGI(TAG_WIFI, "Connected to Access Point");
+        ESP_LOGW(TAG_WIFI, "Waiting for IP address...");
     }
 
     else if (event_base == IP_EVENT &&
@@ -82,9 +88,6 @@ static void wifi_event_handler(void *arg,
                  "Got IP: " IPSTR,
                  IP2STR(&event->ip_info.ip));
 
-        ESP_LOGI(TAG_WIFI,
-                 "Network ready");
-
         xEventGroupSetBits(
             wifi_event_group,
             WIFI_CONNECTED_BIT
@@ -94,18 +97,13 @@ static void wifi_event_handler(void *arg,
     else if (event_base == WIFI_EVENT &&
              event_id == WIFI_EVENT_STA_DISCONNECTED) {
 
-        ESP_LOGW(TAG_WIFI,
-                 "WiFi disconnected");
-
-        mqtt_connected = false;
+        ESP_LOGW(TAG_WIFI, "WiFi disconnected");
+        ESP_LOGI(TAG_WIFI, "Reconnecting WiFi...");
 
         xEventGroupClearBits(
             wifi_event_group,
             WIFI_CONNECTED_BIT
         );
-
-        ESP_LOGI(TAG_WIFI,
-                 "Reconnecting WiFi...");
 
         esp_wifi_connect();
     }
@@ -126,43 +124,81 @@ static void mqtt_event_handler(void *handler_args,
     switch ((esp_mqtt_event_id_t)event_id) {
 
         case MQTT_EVENT_BEFORE_CONNECT:
-
-            ESP_LOGI(TAG_MQTT,
-                     "Connecting to MQTT broker...");
-
+            ESP_LOGI(TAG_MQTT, "Connecting to public Mosquitto broker...");
             break;
 
         case MQTT_EVENT_CONNECTED:
+            ESP_LOGI(TAG_MQTT, "Connected to broker");
 
-            mqtt_connected = true;
+            esp_mqtt_client_subscribe(
+                mqtt_client,
+                MQTT_TOPIC,
+                1
+            );
 
             ESP_LOGI(TAG_MQTT,
-                     "Connected to MQTT broker");
-
+                     "Subscribed to topic: %s",
+                     MQTT_TOPIC);
             break;
 
         case MQTT_EVENT_DISCONNECTED:
-
-            mqtt_connected = false;
-
-            ESP_LOGW(TAG_MQTT,
-                     "MQTT disconnected");
-
+            ESP_LOGW(TAG_MQTT, "Disconnected from broker");
             break;
 
-        case MQTT_EVENT_PUBLISHED:
+        case MQTT_EVENT_SUBSCRIBED:
+            ESP_LOGI(TAG_MQTT,
+                     "Subscription successful. msg_id=%d",
+                     event->msg_id);
+            break;
+
+        case MQTT_EVENT_DATA: {
+            char topic[128] = {0};
+            char data[128] = {0};
+
+            snprintf(topic,
+                     sizeof(topic),
+                     "%.*s",
+                     event->topic_len,
+                     event->topic);
+
+            snprintf(data,
+                     sizeof(data),
+                     "%.*s",
+                     event->data_len,
+                     event->data);
 
             ESP_LOGI(TAG_MQTT,
-                     "Message published successfully. msg_id=%d",
-                     event->msg_id);
+                     "Received topic: %s",
+                     topic);
+
+            ESP_LOGI(TAG_MQTT,
+                     "Received data: %s",
+                     data);
+
+            if (strcmp(topic, MQTT_TOPIC) == 0) {
+
+                if (strcmp(data, "A") == 0) {
+
+                    gpio_set_level(LED_GPIO, 1);
+                    ESP_LOGI(TAG_LED, "Command A received -> LED ON");
+
+                } else if (strcmp(data, "B") == 0) {
+
+                    gpio_set_level(LED_GPIO, 0);
+                    ESP_LOGI(TAG_LED, "Command B received -> LED OFF");
+
+                } else {
+
+                    ESP_LOGW(TAG_LED,
+                             "Unknown command. Send A for ON, B for OFF");
+                }
+            }
 
             break;
+        }
 
         case MQTT_EVENT_ERROR:
-
-            ESP_LOGE(TAG_MQTT,
-                     "MQTT ERROR");
-
+            ESP_LOGE(TAG_MQTT, "MQTT error");
             break;
 
         default:
@@ -171,7 +207,7 @@ static void mqtt_event_handler(void *handler_args,
 }
 
 /* -------------------------------------------------------
- * Initialize WiFi
+ * WiFi Init
  * -----------------------------------------------------*/
 
 static void wifi_init_sta(void)
@@ -215,20 +251,15 @@ static void wifi_init_sta(void)
 
     wifi_config_t wifi_config = {0};
 
-    strncpy(
-        (char *)wifi_config.sta.ssid,
-        WIFI_SSID,
-        sizeof(wifi_config.sta.ssid)
-    );
+    strncpy((char *)wifi_config.sta.ssid,
+            WIFI_SSID,
+            sizeof(wifi_config.sta.ssid));
 
-    strncpy(
-        (char *)wifi_config.sta.password,
-        WIFI_PASSWORD,
-        sizeof(wifi_config.sta.password)
-    );
+    strncpy((char *)wifi_config.sta.password,
+            WIFI_PASSWORD,
+            sizeof(wifi_config.sta.password));
 
-    wifi_config.sta.threshold.authmode =
-        WIFI_AUTH_OPEN;
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
 
     ESP_ERROR_CHECK(
         esp_wifi_set_mode(WIFI_MODE_STA)
@@ -247,13 +278,12 @@ static void wifi_init_sta(void)
 }
 
 /* -------------------------------------------------------
- * Wait Until WiFi Connected
+ * Wait for WiFi
  * -----------------------------------------------------*/
 
 static void wifi_wait_connected(void)
 {
-    ESP_LOGI(TAG_WIFI,
-             "Waiting for WiFi...");
+    ESP_LOGI(TAG_WIFI, "Waiting for WiFi...");
 
     xEventGroupWaitBits(
         wifi_event_group,
@@ -263,27 +293,21 @@ static void wifi_wait_connected(void)
         portMAX_DELAY
     );
 
-    ESP_LOGI(TAG_WIFI,
-             "WiFi fully ready");
+    ESP_LOGI(TAG_WIFI, "WiFi ready");
 }
 
 /* -------------------------------------------------------
- * Initialize MQTT
+ * MQTT Init
  * -----------------------------------------------------*/
 
 static void mqtt_init(void)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
-
-        .broker.address.uri =
-            MQTT_BROKER_URI,
-
-        .credentials.client_id =
-            MQTT_CLIENT_ID,
+        .broker.address.uri = MQTT_BROKER_URI,
+        .credentials.client_id = MQTT_CLIENT_ID,
     };
 
-    mqtt_client =
-        esp_mqtt_client_init(&mqtt_cfg);
+    mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
 
     esp_mqtt_client_register_event(
         mqtt_client,
@@ -293,91 +317,6 @@ static void mqtt_init(void)
     );
 
     esp_mqtt_client_start(mqtt_client);
-
-    ESP_LOGI(TAG_MQTT,
-             "MQTT client started");
-}
-
-/* -------------------------------------------------------
- * Publish Task
- * -----------------------------------------------------*/
-
-static void publish_task(void *arg)
-{
-    int counter = 0;
-
-    char payload[32];
-    char topic[128];
-
-    /*
-     * Unique topic for this ESP32.
-     */
-    snprintf(
-        topic,
-        sizeof(topic),
-        "workshop/esp32/%s/counter",
-        MQTT_CLIENT_ID
-    );
-
-    ESP_LOGI(TAG_MQTT,
-             "Publish topic: %s",
-             topic);
-
-    while (1) {
-
-        if (mqtt_connected) {
-
-            /*
-             * Build payload.
-             */
-            snprintf(
-                payload,
-                sizeof(payload),
-                "%d",
-                counter++
-            );
-
-            /*
-             * Publish message.
-             */
-            int msg_id =
-                esp_mqtt_client_publish(
-                    mqtt_client,
-                    topic,
-                    payload,
-                    0,
-                    1,
-                    0
-                );
-
-            /*
-             * Check publish result.
-             */
-            if (msg_id == -1) {
-
-                ESP_LOGE(TAG_MQTT,
-                         "Publish FAILED");
-
-            } else {
-
-                ESP_LOGI(TAG_MQTT,
-                         "Published: %s -> %s (msg_id=%d)",
-                         topic,
-                         payload,
-                         msg_id);
-            }
-
-        } else {
-
-            ESP_LOGW(TAG_MQTT,
-                     "MQTT not connected. Skipping publish");
-        }
-
-        /*
-         * Publish every 2 seconds.
-         */
-        vTaskDelay(pdMS_TO_TICKS(2000));
-    }
 }
 
 /* -------------------------------------------------------
@@ -386,12 +325,10 @@ static void publish_task(void *arg)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG_WIFI,
-             "Session 08 - Experiment 02");
+    ESP_LOGI(TAG_WIFI, "MQTT LED Control Demo");
 
-    /*
-     * Initialize NVS.
-     */
+    led_init();
+
     esp_err_t ret = nvs_flash_init();
 
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
@@ -401,30 +338,13 @@ void app_main(void)
         ESP_ERROR_CHECK(nvs_flash_init());
     }
 
-    /*
-     * Connect WiFi.
-     */
     wifi_init_sta();
 
-    /*
-     * Wait until IP ready.
-     */
     wifi_wait_connected();
 
-    /*
-     * Start MQTT.
-     */
     mqtt_init();
 
-    /*
-     * Start publishing task.
-     */
-    xTaskCreate(
-        publish_task,
-        "publish_task",
-        4096,
-        NULL,
-        5,
-        NULL
-    );
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }

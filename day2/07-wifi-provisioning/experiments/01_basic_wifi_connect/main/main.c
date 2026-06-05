@@ -33,11 +33,11 @@
  * Password = ""
  */
 
-// #define WIFI_SSID      "Wokwi-GUEST"
-// #define WIFI_PASSWORD  ""
+#define WIFI_SSID      "Wokwi-GUEST"
+#define WIFI_PASSWORD  ""
 
-#define WIFI_SSID      "esp-analogdata"
-#define WIFI_PASSWORD  "analogdata.io"
+// #define WIFI_SSID      "esp-analogdata"
+// #define WIFI_PASSWORD  "analogdata.io"
 
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1

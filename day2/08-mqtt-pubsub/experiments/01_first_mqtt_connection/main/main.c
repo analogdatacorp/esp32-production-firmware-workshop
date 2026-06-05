@@ -32,7 +32,7 @@
 #define WIFI_SSID      "Wokwi-GUEST"
 #define WIFI_PASSWORD  ""
 
-#define MQTT_BROKER_URI  "mqtt://test.mosquitto.org:1883"
+#define MQTT_BROKER_URI  "mqtt://broker.hivemq.com:1883"
 #define MQTT_CLIENT_ID   "analogdata_esp32_001"
 
 #define WIFI_CONNECTED_BIT BIT0

@@ -28,11 +28,11 @@
  * - Application resumes when WiFi comes back
  */
 
-#define WIFI_SSID      "Wokwi-GUEST"
-#define WIFI_PASSWORD  ""
+// #define WIFI_SSID      "Wokwi-GUEST"
+// #define WIFI_PASSWORD  ""
 
-// #define WIFI_SSID      "esp-analogdata"
-// #define WIFI_PASSWORD  "analogdata.io"
+#define WIFI_SSID      "esp-analogdata"
+#define WIFI_PASSWORD  "analogdata.io"
 
 static const char *TAG = "WIFI_RECONNECT";
 
